@@ -84,7 +84,27 @@ func (g *OPCUAConnection) getBytesFromValue(dataValue *ua.DataValue, nodeDef Nod
 	case uint64:
 		b = append(b, []byte(strconv.FormatUint(v, 10))...)
 		tagType = "number"
+	case *ua.ExtensionObject:
+		// Skip ExtensionObjects with nil Value — these are custom/vendor-specific types
+		// that the OPC UA client could not decode (e.g. StatusBadDataTypeIDUnknown).
+		// The individual sub-fields are already read as separate nodes.
+		if v == nil || v.Value == nil {
+			g.Log.Warnf("Skipping node %s: ExtensionObject with nil value (unsupported data type, TypeID: %v)", nodeDef.NodeID.String(), v.TypeID)
+			return nil, ""
+		}
+		jsonBytes, err := json.Marshal(v.Value)
+		if err != nil {
+			g.Log.Errorf("Error marshaling ExtensionObject to JSON: %v", err)
+			return nil, ""
+		}
+		b = append(b, jsonBytes...)
+		tagType = "string"
 	default:
+		// Check if the value is a slice that contains only nil-valued ExtensionObjects
+		if containsOnlyNilExtensionObjects(v) {
+			g.Log.Warnf("Skipping node %s: array of ExtensionObjects with nil values (unsupported data type)", nodeDef.NodeID.String())
+			return nil, ""
+		}
 		// Convert unknown types to JSON
 		jsonBytes, err := json.Marshal(v)
 		if err != nil {
@@ -101,6 +121,24 @@ func (g *OPCUAConnection) getBytesFromValue(dataValue *ua.DataValue, nodeDef Nod
 	}
 
 	return b, tagType
+}
+
+// containsOnlyNilExtensionObjects checks if a value is a slice of *ua.ExtensionObject
+// where all elements have nil Values (i.e., undecodable custom types).
+func containsOnlyNilExtensionObjects(v interface{}) bool {
+	slice, ok := v.([]*ua.ExtensionObject)
+	if !ok {
+		return false
+	}
+	if len(slice) == 0 {
+		return false
+	}
+	for _, ext := range slice {
+		if ext != nil && ext.Value != nil {
+			return false
+		}
+	}
+	return true
 }
 
 // Read performs a synchronous read operation on the OPC UA server using the provided ReadRequest.
