@@ -122,4 +122,31 @@ var _ = Describe("getBytesFromValue", func() {
 		Expect(b).To(BeNil())
 		Expect(tagType).To(BeEmpty())
 	})
+
+	It("should return nil for OK status with ExtensionObject with nil value", func() {
+		dataValue := &ua.DataValue{
+			Status: ua.StatusOK,
+			Value:  ua.MustVariant(&ua.ExtensionObject{Value: nil}),
+		}
+
+		b, tagType := conn.getBytesFromValue(dataValue, nodeDef)
+		Expect(b).To(BeNil())
+		Expect(tagType).To(BeEmpty())
+	})
+
+	It("should return nil for OK status with array of ExtensionObjects with nil values", func() {
+		extObjs := []*ua.ExtensionObject{
+			{Value: nil},
+			{Value: nil},
+			{Value: nil},
+		}
+		dataValue := &ua.DataValue{
+			Status: ua.StatusOK,
+			Value:  ua.MustVariant(extObjs),
+		}
+
+		b, tagType := conn.getBytesFromValue(dataValue, nodeDef)
+		Expect(b).To(BeNil())
+		Expect(tagType).To(BeEmpty())
+	})
 })
