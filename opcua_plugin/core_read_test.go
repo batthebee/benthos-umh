@@ -122,4 +122,102 @@ var _ = Describe("getBytesFromValue", func() {
 		Expect(b).To(BeNil())
 		Expect(tagType).To(BeEmpty())
 	})
+
+	Context("ExtensionObject handling", func() {
+		It("should return nil for ExtensionObject with nil Value (undecodable UDT)", func() {
+			extObj := &ua.ExtensionObject{
+				TypeID: &ua.ExpandedNodeID{
+					NodeID: ua.NewNumericNodeID(4, 202),
+				},
+				EncodingMask: ua.ExtensionObjectBinary,
+				Value:        nil,
+			}
+			dataValue := &ua.DataValue{
+				Status: ua.StatusOK,
+				Value:  ua.MustVariant(extObj),
+			}
+
+			b, tagType := conn.getBytesFromValue(dataValue, nodeDef)
+			Expect(b).To(BeNil())
+			Expect(tagType).To(BeEmpty())
+		})
+
+		It("should return JSON bytes for ExtensionObject with decoded Value", func() {
+			decodedValue := &ua.DataChangeFilter{
+				Trigger:       ua.DataChangeTriggerStatusValue,
+				DeadbandType:  uint32(ua.DeadbandTypeAbsolute),
+				DeadbandValue: 0.5,
+			}
+			extObj := &ua.ExtensionObject{
+				TypeID: &ua.ExpandedNodeID{
+					NodeID: ua.NewNumericNodeID(0, 724),
+				},
+				EncodingMask: ua.ExtensionObjectBinary,
+				Value:        decodedValue,
+			}
+			dataValue := &ua.DataValue{
+				Status: ua.StatusOK,
+				Value:  ua.MustVariant(extObj),
+			}
+
+			b, tagType := conn.getBytesFromValue(dataValue, nodeDef)
+			Expect(b).NotTo(BeNil())
+			Expect(tagType).To(Equal("string"))
+			Expect(string(b)).To(ContainSubstring("DeadbandValue"))
+		})
+
+		It("should return nil for array of ExtensionObjects all with nil Values", func() {
+			extObjs := []*ua.ExtensionObject{
+				{
+					TypeID:       &ua.ExpandedNodeID{NodeID: ua.NewNumericNodeID(4, 202)},
+					EncodingMask: ua.ExtensionObjectBinary,
+					Value:        nil,
+				},
+				{
+					TypeID:       &ua.ExpandedNodeID{NodeID: ua.NewNumericNodeID(4, 203)},
+					EncodingMask: ua.ExtensionObjectBinary,
+					Value:        nil,
+				},
+			}
+			dataValue := &ua.DataValue{
+				Status: ua.StatusOK,
+				Value:  ua.MustVariant(extObjs),
+			}
+
+			b, tagType := conn.getBytesFromValue(dataValue, nodeDef)
+			Expect(b).To(BeNil())
+			Expect(tagType).To(BeEmpty())
+		})
+
+		It("should return JSON array with only decoded values from mixed ExtensionObject array", func() {
+			decodedValue := &ua.DataChangeFilter{
+				Trigger:       ua.DataChangeTriggerStatusValue,
+				DeadbandType:  uint32(ua.DeadbandTypeAbsolute),
+				DeadbandValue: 1.5,
+			}
+			extObjs := []*ua.ExtensionObject{
+				{
+					TypeID:       &ua.ExpandedNodeID{NodeID: ua.NewNumericNodeID(4, 202)},
+					EncodingMask: ua.ExtensionObjectBinary,
+					Value:        nil, // undecodable
+				},
+				{
+					TypeID:       &ua.ExpandedNodeID{NodeID: ua.NewNumericNodeID(0, 724)},
+					EncodingMask: ua.ExtensionObjectBinary,
+					Value:        decodedValue, // decoded
+				},
+			}
+			dataValue := &ua.DataValue{
+				Status: ua.StatusOK,
+				Value:  ua.MustVariant(extObjs),
+			}
+
+			b, tagType := conn.getBytesFromValue(dataValue, nodeDef)
+			Expect(b).NotTo(BeNil())
+			Expect(tagType).To(Equal("string"))
+			// Should be a JSON array with exactly one element (the decoded one)
+			Expect(string(b)).To(HavePrefix("["))
+			Expect(string(b)).To(ContainSubstring("DeadbandValue"))
+		})
+	})
 })

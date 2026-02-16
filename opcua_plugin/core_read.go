@@ -84,6 +84,41 @@ func (g *OPCUAConnection) getBytesFromValue(dataValue *ua.DataValue, nodeDef Nod
 	case uint64:
 		b = append(b, []byte(strconv.FormatUint(v, 10))...)
 		tagType = "number"
+	case *ua.ExtensionObject:
+		if v.Value == nil {
+			// Unregistered type — skip (binary data already discarded by gopcua)
+			g.Log.Warnf("Skipping node %s: ExtensionObject type %s not decodable (custom UDT not registered)",
+				nodeDef.NodeID.String(), v.TypeID.NodeID.String())
+			return nil, ""
+		}
+		// Type was registered and decoded — serialize the actual value
+		jsonBytes, err := json.Marshal(v.Value)
+		if err != nil {
+			g.Log.Errorf("Error marshaling ExtensionObject value for node %s: %v", nodeDef.NodeID.String(), err)
+			return nil, ""
+		}
+		b = append(b, jsonBytes...)
+		tagType = "string"
+	case []*ua.ExtensionObject:
+		// Filter: collect only decoded Extension Objects
+		var decoded []interface{}
+		for _, eo := range v {
+			if eo != nil && eo.Value != nil {
+				decoded = append(decoded, eo.Value)
+			}
+		}
+		if len(decoded) == 0 {
+			g.Log.Warnf("Skipping node %s: array of %d ExtensionObjects, none decodable (custom UDTs not registered)",
+				nodeDef.NodeID.String(), len(v))
+			return nil, ""
+		}
+		jsonBytes, err := json.Marshal(decoded)
+		if err != nil {
+			g.Log.Errorf("Error marshaling ExtensionObject array for node %s: %v", nodeDef.NodeID.String(), err)
+			return nil, ""
+		}
+		b = append(b, jsonBytes...)
+		tagType = "string"
 	default:
 		// Convert unknown types to JSON
 		jsonBytes, err := json.Marshal(v)
