@@ -132,6 +132,7 @@ func extractFields(configObj map[string]interface{}) map[string]FieldSpec {
 			Description: getString(fieldMap, "description"),
 			Required:    !getBool(fieldMap, "is_optional") && !hasDefault(fieldMap),
 			Advanced:    getBool(fieldMap, "is_advanced"),
+			Deprecated:  getBool(fieldMap, "is_deprecated"),
 		}
 
 		// Skip fields with empty names to avoid map key collision
@@ -164,6 +165,10 @@ func extractFields(configObj map[string]interface{}) map[string]FieldSpec {
 			field.Children = extractFieldsArray(childFields)
 		}
 
+		if field.Required && len(field.Children) > 0 && !hasRequiredChildren(field.Children) {
+			field.Required = false
+		}
+
 		fields[field.Name] = field
 	}
 
@@ -187,6 +192,7 @@ func extractFieldsArray(childFields []interface{}) []FieldSpec {
 			Description: getString(fieldMap, "description"),
 			Required:    !getBool(fieldMap, "is_optional") && !hasDefault(fieldMap),
 			Advanced:    getBool(fieldMap, "is_advanced"),
+			Deprecated:  getBool(fieldMap, "is_deprecated"),
 		}
 
 		// Handle default value
@@ -212,6 +218,10 @@ func extractFieldsArray(childFields []interface{}) []FieldSpec {
 		// Recursively handle nested children
 		if childFieldsNested, ok := fieldMap["children"].([]interface{}); ok && len(childFieldsNested) > 0 {
 			field.Children = extractFieldsArray(childFieldsNested)
+		}
+
+		if field.Required && len(field.Children) > 0 && !hasRequiredChildren(field.Children) {
+			field.Required = false
 		}
 
 		fields = append(fields, field)
@@ -282,4 +292,13 @@ func getBool(m map[string]interface{}, key string) bool {
 func hasDefault(m map[string]interface{}) bool {
 	_, ok := m["default"]
 	return ok
+}
+
+func hasRequiredChildren(children []FieldSpec) bool {
+	for _, child := range children {
+		if child.Required {
+			return true
+		}
+	}
+	return false
 }

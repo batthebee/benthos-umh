@@ -3,7 +3,7 @@
   "extends": ["config:recommended"],
   "commitMessagePrefix": "[renovate]chore(deps):",
   "enabledManagers": ["dockerfile", "gomod"],
-  "postUpdateOptions": ["gomodTidy"],
+  "postUpdateOptions": ["gomodTidy", "gomodUpdateImportPaths"],
   "minimumReleaseAge": "7 days",
   "timezone": "Europe/Berlin",
   "schedule": ["* * * * 0"],
@@ -51,6 +51,19 @@
       "matchUpdateTypes": ["major"],
       "groupName": "Dockerfile dependencies (major)",
       "groupSlug": "dockerfile-deps-major"
+    },
+    {
+      "description": "Bump go directive in go.mod",
+      "matchDepNames": ["go"],
+      "matchManagers": ["gomod"],
+      "rangeStrategy": "bump"
+    },
+    {
+      "description": "Sync Go version in Dockerfile and go.mod",
+      "matchDepNames": ["golang", "go"],
+      "matchUpdateTypes": ["minor", "patch", "major"],
+      "groupName": "Go version",
+      "groupSlug": "go-version"
     }
   ]
 }

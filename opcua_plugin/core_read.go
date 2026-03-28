@@ -27,7 +27,7 @@ import (
 // getBytesFromValue returns the bytes and the tag type for a given OPC UA DataValue and NodeDef.
 func (g *OPCUAConnection) getBytesFromValue(dataValue *ua.DataValue, nodeDef NodeDef) ([]byte, string) {
 	variant := dataValue.Value
-	if variant == nil {
+	if variant == nil || variant.Value() == nil {
 		g.Log.Errorf("Variant is nil")
 		return nil, ""
 	}

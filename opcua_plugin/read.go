@@ -597,6 +597,9 @@ func (g *OPCUAInput) ReadBatchSubscribe(ctx context.Context) (service.MessageBat
 // when applicable, facilitating heartbeat monitoring within the system.
 func (g *OPCUAInput) createMessageFromValue(dataValue *ua.DataValue, nodeDef NodeDef) *service.Message {
 	b, tagType := g.getBytesFromValue(dataValue, nodeDef)
+	if b == nil {
+		return nil
+	}
 	message := service.NewMessage(b)
 
 	// New ones
@@ -612,12 +615,14 @@ func (g *OPCUAInput) createMessageFromValue(dataValue *ua.DataValue, nodeDef Nod
 
 	tagName := sanitize(nodeDef.BrowseName)
 
-	// Tag Group
-	tagGroup := nodeDef.Path
-	// remove nodeDef.BrowseName from tagGroup
-	tagGroup = strings.Replace(tagGroup, nodeDef.BrowseName, "", 1)
-	// remove trailing dot
-	tagGroup = strings.TrimSuffix(tagGroup, ".")
+	// Tag Group: the path is built using sanitized browse names (see core_browse_global_pool.go),
+	// so we must remove the sanitized name from the end of the path, not the raw BrowseName.
+	// Using TrimSuffix ensures we only remove from the end, avoiding accidental mid-path matches.
+	tagGroup := strings.TrimSuffix(nodeDef.Path, "."+tagName)
+	if tagGroup == nodeDef.Path {
+		// No dot-prefixed suffix found — the path might equal the tag name (root-level node)
+		tagGroup = strings.TrimSuffix(tagGroup, tagName)
+	}
 
 	// if the node is the CurrentTime node, mark is as a heartbeat message
 	if g.HeartbeatNodeId != nil && nodeDef.NodeID.Namespace() == g.HeartbeatNodeId.Namespace() && nodeDef.NodeID.IntID() == g.HeartbeatNodeId.IntID() && g.UseHeartbeat {
